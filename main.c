@@ -44,10 +44,19 @@ void *tmalloc(int n) {
   return cur + 1;
 }
 
+void tfree(struct block_meta *p) {
+  if (!p) {
+    return;
+  }
+
+  p->free = 1;
+}
+
 void tmalloc_print() {
   struct block_meta *cur = HEAD;
   while (cur) {
-    printf("[address=%p size=%zu free=%d]\n", cur, cur->size, cur->free);
+    printf("[address=%p size=%zu(%zu) free=%d]\n", cur, cur->size,
+           cur->size + BLOCK_META_SIZE, cur->free);
     cur = cur->next;
   }
 }
