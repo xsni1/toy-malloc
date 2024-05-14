@@ -12,7 +12,7 @@ struct block_meta {
 
 void *HEAD = NULL;
 
-void *request_space(int n) {
+struct block_meta *request_space(int n) {
   struct block_meta *cur = sbrk(0);
   void *allocated = sbrk(n + BLOCK_META_SIZE);
 
@@ -48,7 +48,8 @@ void *tmalloc(int n) {
       // check if after taking n bytes of memory (as requested) from this
       // block, we can still use the leftovers for another block
       if (cur->size - n > BLOCK_META_SIZE + 8) {
-        struct block_meta *new_block = (struct block_meta *)((char *)cur + n + BLOCK_META_SIZE);
+        struct block_meta *new_block =
+            (struct block_meta *)((char *)cur + n + BLOCK_META_SIZE);
         new_block->size = cur->size - n - BLOCK_META_SIZE;
         new_block->free = 1;
         new_block->next = cur->next;
@@ -63,10 +64,10 @@ void *tmalloc(int n) {
     cur = cur->next;
   }
 
-  void *new_block = request_space(n);
+  struct block_meta *new_block = request_space(n);
   cur->next = new_block;
 
-  return cur + 1;
+  return new_block + 1;
 }
 
 void tfree(struct block_meta *p) {
@@ -75,7 +76,19 @@ void tfree(struct block_meta *p) {
   }
 
   // what happens if i try to change "free" field on some arbitrary address?
-  ((struct block_meta *)p - 1)->free = 1;
+  struct block_meta *block = ((struct block_meta *)p - 1);
+  /* printf("nextt: %p\n", block->next->next); */
+  block->free = 1;
+  if (block->next != NULL && block->next->free) {
+    int old_block_size = block->next->size;
+    if (block->next->next == NULL) {
+      block->next = NULL;
+    } else {
+      block->next = block->next->next;
+    }
+    block->size = block->size + old_block_size + BLOCK_META_SIZE;
+  }
+  /* ->free = 1; */
 }
 
 void tmalloc_print() {
@@ -101,7 +114,16 @@ int main() {
     tmalloc_print();
     printf("======\n");
     addr = tmalloc(500);
+    void *addr3 = tmalloc(800);
+    void *addr5 = tmalloc(800);
+    void *addr4 = tmalloc(800);
+    tfree(addr3);
+    tfree(addr4);
 
+    tmalloc_print();
+    printf("======\n");
+
+    tfree(addr5);
     tmalloc_print();
     getchar();
   }
