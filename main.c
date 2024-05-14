@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #define BLOCK_META_SIZE sizeof(struct block_meta)
@@ -33,11 +34,35 @@ void *tmalloc(int n) {
     return cur + 1;
   }
 
-  // TODO: look for already free space
   struct block_meta *cur = HEAD;
+
+  // first-fit algorithm
+  // TODO: if free block is bigger than requested split it (new block has to be
+  // big enough to contain meta block)
   while (cur->next) {
+    // if free and big enough we gonna use this block to either take it as a
+    // whole or split (if enough space)
+    if (cur->free == 1 && cur->size > n) {
+      // make 8 the smalles block of memory to fix alignment problems?
+
+      // check if after taking n bytes of memory (as requested) from this
+      // block, we can still use the leftovers for another block
+      if (cur->size - n > BLOCK_META_SIZE + 8) {
+        struct block_meta *new_block = (struct block_meta *)((char *)cur + n + BLOCK_META_SIZE);
+        new_block->size = cur->size - n - BLOCK_META_SIZE;
+        new_block->free = 1;
+        new_block->next = cur->next;
+        cur->next = new_block;
+      }
+
+      cur->free = 0;
+      cur->size = n;
+      return cur + 1;
+    }
+
     cur = cur->next;
   }
+
   void *new_block = request_space(n);
   cur->next = new_block;
 
@@ -49,7 +74,8 @@ void tfree(struct block_meta *p) {
     return;
   }
 
-  p->free = 1;
+  // what happens if i try to change "free" field on some arbitrary address?
+  ((struct block_meta *)p - 1)->free = 1;
 }
 
 void tmalloc_print() {
@@ -63,9 +89,19 @@ void tmalloc_print() {
 
 int main() {
   void *addr = tmalloc(1);
+
   while (1) {
     getchar();
     void *addr = tmalloc(1000);
+    addr = tmalloc(1000);
+    addr = tmalloc(1000);
+    void *addr2 = tmalloc(1000);
+    addr = tmalloc(1000);
+    tfree(addr2);
+    tmalloc_print();
+    printf("======\n");
+    addr = tmalloc(500);
+
     tmalloc_print();
     getchar();
   }
