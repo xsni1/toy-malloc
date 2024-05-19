@@ -42,51 +42,55 @@ struct block_meta *request_space(int n) {
  *          0x0000 - 0x0020
  */
 
-void *tmalloc(int n) {
-  if (HEAD == NULL) {
-    struct block_meta *cur = request_space(n);
-    HEAD = cur;
-
-    return cur + 1;
-  }
-
+void *find_block(int n) {
   struct block_meta *cur = HEAD;
 
-  while (cur) {
-    // if free and big enough we gonna use this block to either take it as a
-    // whole or split (if enough space)
+  while (cur->next) {
     if (cur->free == 1 && cur->size > n) {
-      // check if after taking n bytes of memory (as requested) from this
-      // block, we can still use the leftovers for another block
-      if (cur->size - n > BLOCK_META_SIZE + 8) {
-        struct block_meta *new_block =
-            (struct block_meta *)((char *)cur + n + BLOCK_META_SIZE);
-        new_block->size = cur->size - n - BLOCK_META_SIZE;
-        new_block->free = 1;
-        new_block->next = cur->next;
-        cur->next = new_block;
-        new_block->prev = cur;
-        if (new_block->next != NULL) {
-            new_block->next->prev = new_block;
-        }
-      }
-
-      cur->free = 0;
-      cur->size = n;
-      return cur + 1;
+      return cur;
     }
 
-    if (cur->next == NULL) {
-        break;
-    }
     cur = cur->next;
   }
 
-  struct block_meta *new_block = request_space(n);
-  cur->next = new_block;
-  new_block->prev = cur;
+  return cur;
+}
 
-  return new_block + 1;
+void *append_or_reuse_block(struct block_meta *block, int n) {
+  if (block->free && block->size > n) {
+    if (block->size - n > BLOCK_META_SIZE + 8) {
+      struct block_meta *new_block =
+          (struct block_meta *)((char *)block + n + BLOCK_META_SIZE);
+      new_block->size = block->size - n - BLOCK_META_SIZE;
+      new_block->free = 1;
+      new_block->next = block->next;
+      block->next = new_block;
+      new_block->prev = block;
+      if (new_block->next != NULL) {
+        new_block->next->prev = new_block;
+      }
+    }
+
+    block->free = 0;
+    block->size = n;
+    return block;
+  }
+
+  struct block_meta *new_block = request_space(n);
+  block->next = new_block;
+  new_block->prev = block;
+
+  return new_block;
+}
+
+void tmalloc_print() {
+  struct block_meta *cur = HEAD;
+  while (cur) {
+    printf("[address=%p size=%zu(%zu) free=%d next=%p prev=%p]\n", cur,
+           cur->size, cur->size + BLOCK_META_SIZE, cur->free, cur->next,
+           cur->prev);
+    cur = cur->next;
+  }
 }
 
 void tfree(struct block_meta *p) {
@@ -123,14 +127,18 @@ void tfree(struct block_meta *p) {
   }
 }
 
-void tmalloc_print() {
-  struct block_meta *cur = HEAD;
-  while (cur) {
-    printf("[address=%p size=%zu(%zu) free=%d next=%p prev=%p]\n", cur,
-           cur->size, cur->size + BLOCK_META_SIZE, cur->free, cur->next,
-           cur->prev);
-    cur = cur->next;
+void *tmalloc(int n) {
+  if (HEAD == NULL) {
+    struct block_meta *cur = request_space(n);
+    HEAD = cur;
+
+    return cur + 1;
   }
+
+  struct block_meta *block = find_block(n);
+  struct block_meta *new_block = append_or_reuse_block(block, n);
+
+  return new_block + 1;
 }
 
 int main() {
@@ -153,7 +161,7 @@ int main() {
 
   tmalloc_print();
   printf("======\n");
-  
+
   tfree(addr3);
   tfree(addr4);
 
