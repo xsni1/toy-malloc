@@ -52,7 +52,7 @@ void *tmalloc(int n) {
 
   struct block_meta *cur = HEAD;
 
-  while (cur->next) {
+  while (cur) {
     // if free and big enough we gonna use this block to either take it as a
     // whole or split (if enough space)
     if (cur->free == 1 && cur->size > n) {
@@ -66,7 +66,9 @@ void *tmalloc(int n) {
         new_block->next = cur->next;
         cur->next = new_block;
         new_block->prev = cur;
-        new_block->next->prev = new_block;
+        if (new_block->next != NULL) {
+            new_block->next->prev = new_block;
+        }
       }
 
       cur->free = 0;
@@ -74,6 +76,9 @@ void *tmalloc(int n) {
       return cur + 1;
     }
 
+    if (cur->next == NULL) {
+        break;
+    }
     cur = cur->next;
   }
 
