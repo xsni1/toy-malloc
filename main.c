@@ -15,7 +15,7 @@ void *HEAD = NULL;
 
 struct block_meta *request_space(int n) {
   struct block_meta *cur = sbrk(0);
-  void *allocated = sbrk(n + BLOCK_META_SIZE);
+  struct block_meta *allocated = sbrk(n + BLOCK_META_SIZE);
 
   if (allocated == (void *)-1) {
     return NULL;
@@ -27,6 +27,20 @@ struct block_meta *request_space(int n) {
   cur->size = n;
   return cur;
 }
+
+/*
+ *  ______________
+ * |             |
+ * |  next=0x00  |
+ * |  prev=0x01  |
+ * |  free=0     |
+ * |  size=0     |
+ * |_____________|
+ *
+ *
+ * |_______________________________|
+ *          0x0000 - 0x0020
+ */
 
 void *tmalloc(int n) {
   if (HEAD == NULL) {
@@ -42,8 +56,6 @@ void *tmalloc(int n) {
     // if free and big enough we gonna use this block to either take it as a
     // whole or split (if enough space)
     if (cur->free == 1 && cur->size > n) {
-      // make 8 the smalles block of memory to fix alignment problems?
-
       // check if after taking n bytes of memory (as requested) from this
       // block, we can still use the leftovers for another block
       if (cur->size - n > BLOCK_META_SIZE + 8) {
@@ -80,12 +92,11 @@ void tfree(struct block_meta *p) {
   struct block_meta *block = ((struct block_meta *)p - 1);
 
   if (block->free) {
-      return;
+    return;
   }
 
   block->free = 1;
   if (block->next != NULL && block->next->free) {
-    /* printf("pre old_block_size\n"); */
     int old_block_size = block->next->size;
     if (block->next->next == NULL) {
       block->next = NULL;
@@ -118,50 +129,57 @@ void tmalloc_print() {
 }
 
 int main() {
-  void *addr = tmalloc(1);
+  void *addr = tmalloc(500);
 
-  while (1) {
-    getchar();
-    void *addr13 = tmalloc(1000);
-    void *addr11 = tmalloc(1000);
-    void *addr12 = tmalloc(1000);
-    void *addr2 = tmalloc(1000);
-    void *addr10 = tmalloc(1000);
-    tfree(addr2);
-    tmalloc_print();
+  void *addr13 = tmalloc(1001);
+  void *addr11 = tmalloc(1015);
+  void *addr12 = tmalloc(1000);
+  void *addr2 = tmalloc(1000);
+  void *addr10 = tmalloc(1000);
+  tfree(addr2);
 
-    printf("======\n");
-    void *addr14 = tmalloc(500);
-    void *addr3 = tmalloc(800);
-    void *addr5 = tmalloc(800);
-    void *addr4 = tmalloc(800);
-    tfree(addr3);
-    tfree(addr4);
+  tmalloc_print();
+  printf("======\n");
 
-    tmalloc_print();
-    printf("======\n");
+  void *addr14 = tmalloc(500);
+  void *addr3 = tmalloc(800);
+  void *addr5 = tmalloc(800);
+  void *addr4 = tmalloc(800);
 
-    tfree(addr5);
-    tmalloc_print();
-    printf("======\n");
+  tmalloc_print();
+  printf("======\n");
+  
+  tfree(addr3);
+  tfree(addr4);
 
-    tfree(addr10);
-    tmalloc_print();
-    printf("======\n");
+  tmalloc_print();
+  printf("======\n");
 
-    /* tfree(addr); */
-    tfree(addr14);
-    tfree(addr13);
-    tfree(addr11);
-    tfree(addr12);
-    tmalloc_print();
+  tfree(addr5);
 
-    printf("======\n");
+  tmalloc_print();
+  printf("======\n");
 
-    tfree(addr);
-    tmalloc_print();
+  tfree(addr10);
 
-    getchar();
-  }
+  tmalloc_print();
+  printf("======\n");
+
+  tfree(addr14);
+  tfree(addr13);
+  tfree(addr11);
+  tfree(addr12);
+
+  tmalloc_print();
+  printf("======\n");
+
+  tfree(addr);
+
+  tmalloc_print();
+  printf("======\n");
+
+  tmalloc(123);
+  tmalloc_print();
+
   return 0;
 }
