@@ -30,7 +30,7 @@ struct block_meta *request_space(int n) {
 
 void *tmalloc(int n) {
   if (HEAD == NULL) {
-    void *cur = request_space(n);
+    struct block_meta *cur = request_space(n);
     HEAD = cur;
 
     return cur + 1;
@@ -79,8 +79,13 @@ void tfree(struct block_meta *p) {
 
   struct block_meta *block = ((struct block_meta *)p - 1);
 
+  if (block->free) {
+      return;
+  }
+
   block->free = 1;
   if (block->next != NULL && block->next->free) {
+    /* printf("pre old_block_size\n"); */
     int old_block_size = block->next->size;
     if (block->next->next == NULL) {
       block->next = NULL;
@@ -105,8 +110,9 @@ void tfree(struct block_meta *p) {
 void tmalloc_print() {
   struct block_meta *cur = HEAD;
   while (cur) {
-    printf("[address=%p size=%zu(%zu) free=%d next=%p prev=%p]\n", cur, cur->size,
-           cur->size + BLOCK_META_SIZE, cur->free, cur->next, cur->prev);
+    printf("[address=%p size=%zu(%zu) free=%d next=%p prev=%p]\n", cur,
+           cur->size, cur->size + BLOCK_META_SIZE, cur->free, cur->next,
+           cur->prev);
     cur = cur->next;
   }
 }
@@ -116,16 +122,16 @@ int main() {
 
   while (1) {
     getchar();
-    void *addr = tmalloc(1000);
-    addr = tmalloc(1000);
-    addr = tmalloc(1000);
+    void *addr13 = tmalloc(1000);
+    void *addr11 = tmalloc(1000);
+    void *addr12 = tmalloc(1000);
     void *addr2 = tmalloc(1000);
     void *addr10 = tmalloc(1000);
     tfree(addr2);
     tmalloc_print();
 
     printf("======\n");
-    addr = tmalloc(500);
+    void *addr14 = tmalloc(500);
     void *addr3 = tmalloc(800);
     void *addr5 = tmalloc(800);
     void *addr4 = tmalloc(800);
@@ -141,6 +147,20 @@ int main() {
 
     tfree(addr10);
     tmalloc_print();
+    printf("======\n");
+
+    /* tfree(addr); */
+    tfree(addr14);
+    tfree(addr13);
+    tfree(addr11);
+    tfree(addr12);
+    tmalloc_print();
+
+    printf("======\n");
+
+    tfree(addr);
+    tmalloc_print();
+
     getchar();
   }
   return 0;
