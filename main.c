@@ -7,6 +7,7 @@
 struct block_meta {
   size_t size;
   struct block_meta *next;
+  struct block_meta *prev;
   int free;
 };
 
@@ -21,6 +22,7 @@ struct block_meta *request_space(int n) {
   }
 
   cur->next = NULL;
+  cur->prev = NULL;
   cur->free = 0;
   cur->size = n;
   return cur;
@@ -36,9 +38,6 @@ void *tmalloc(int n) {
 
   struct block_meta *cur = HEAD;
 
-  // first-fit algorithm
-  // TODO: if free block is bigger than requested split it (new block has to be
-  // big enough to contain meta block)
   while (cur->next) {
     // if free and big enough we gonna use this block to either take it as a
     // whole or split (if enough space)
@@ -54,6 +53,8 @@ void *tmalloc(int n) {
         new_block->free = 1;
         new_block->next = cur->next;
         cur->next = new_block;
+        new_block->prev = cur;
+        new_block->next->prev = new_block;
       }
 
       cur->free = 0;
@@ -66,6 +67,7 @@ void *tmalloc(int n) {
 
   struct block_meta *new_block = request_space(n);
   cur->next = new_block;
+  new_block->prev = cur;
 
   return new_block + 1;
 }
@@ -75,9 +77,8 @@ void tfree(struct block_meta *p) {
     return;
   }
 
-  // what happens if i try to change "free" field on some arbitrary address?
   struct block_meta *block = ((struct block_meta *)p - 1);
-  /* printf("nextt: %p\n", block->next->next); */
+
   block->free = 1;
   if (block->next != NULL && block->next->free) {
     int old_block_size = block->next->size;
@@ -88,14 +89,24 @@ void tfree(struct block_meta *p) {
     }
     block->size = block->size + old_block_size + BLOCK_META_SIZE;
   }
-  /* ->free = 1; */
+
+  if (block->prev != NULL && block->prev->free) {
+    int old_block_size = block->prev->size;
+    if (block->prev->prev == NULL) {
+      block->prev = NULL;
+    } else {
+      block->prev->prev->next = block;
+      block->prev = block->prev->prev;
+    }
+    block->size = block->size + old_block_size + BLOCK_META_SIZE;
+  }
 }
 
 void tmalloc_print() {
   struct block_meta *cur = HEAD;
   while (cur) {
-    printf("[address=%p size=%zu(%zu) free=%d]\n", cur, cur->size,
-           cur->size + BLOCK_META_SIZE, cur->free);
+    printf("[address=%p size=%zu(%zu) free=%d next=%p prev=%p]\n", cur, cur->size,
+           cur->size + BLOCK_META_SIZE, cur->free, cur->next, cur->prev);
     cur = cur->next;
   }
 }
@@ -109,9 +120,10 @@ int main() {
     addr = tmalloc(1000);
     addr = tmalloc(1000);
     void *addr2 = tmalloc(1000);
-    addr = tmalloc(1000);
+    void *addr10 = tmalloc(1000);
     tfree(addr2);
     tmalloc_print();
+
     printf("======\n");
     addr = tmalloc(500);
     void *addr3 = tmalloc(800);
@@ -124,6 +136,10 @@ int main() {
     printf("======\n");
 
     tfree(addr5);
+    tmalloc_print();
+    printf("======\n");
+
+    tfree(addr10);
     tmalloc_print();
     getchar();
   }
