@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #define BLOCK_META_SIZE sizeof(struct block_meta)
+#define ALIGNMENT 8
 
 struct block_meta {
   size_t size;
@@ -59,6 +60,8 @@ void *find_block(int n) {
 void *append_or_reuse_block(struct block_meta *block, int n) {
   if (block->free && block->size > n) {
     if (block->size - n > BLOCK_META_SIZE + 8) {
+      /* printf("moving by %lu\n", */
+      /*        ((unsigned long)(char *)block + n + BLOCK_META_SIZE) % 8); */
       struct block_meta *new_block =
           (struct block_meta *)((char *)block + n + BLOCK_META_SIZE);
       new_block->size = block->size - n - BLOCK_META_SIZE;
@@ -82,6 +85,10 @@ void *append_or_reuse_block(struct block_meta *block, int n) {
 
   return new_block;
 }
+
+// for n = 3, alignment = 8
+// 3 + (3 - (3 % 8)) = 3 + (8 - (3 % 8))
+int align(int n) { return n + (ALIGNMENT - (n % ALIGNMENT)); }
 
 void tmalloc_print() {
   struct block_meta *cur = HEAD;
@@ -128,15 +135,16 @@ void tfree(struct block_meta *p) {
 }
 
 void *tmalloc(int n) {
+  int aligned_n = align(n);
   if (HEAD == NULL) {
-    struct block_meta *cur = request_space(n);
+    struct block_meta *cur = request_space(aligned_n);
     HEAD = cur;
 
     return cur + 1;
   }
 
-  struct block_meta *block = find_block(n);
-  struct block_meta *new_block = append_or_reuse_block(block, n);
+  struct block_meta *block = find_block(aligned_n);
+  struct block_meta *new_block = append_or_reuse_block(block, aligned_n);
 
   return new_block + 1;
 }
